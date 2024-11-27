@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import pdfplumber
+import time
 from urllib.parse import urlparse, unquote
 
 def sanitize_filename(filename):
@@ -38,8 +39,14 @@ def download_content_from_links(links, output_folder):
 
 def process_pdfs_in_folder(folder_path):
     log_entries = []
+    inicio_proceso = time.time()
+    ahora = time.localtime()
+    formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
+    log_entry = f"\n********************\nHora de inicio: {formato}"
+    log_entries.append(log_entry)
     for filename in os.listdir(folder_path):
         if filename.endswith('.pdf'):
+            inicio_pdf = time.time()
             pdf_path = os.path.join(folder_path, filename)
             links = extract_links_from_pdf(pdf_path)
             print(filename, "Cantidad de docs: ", len(links))
@@ -47,14 +54,52 @@ def process_pdfs_in_folder(folder_path):
                 output_folder = os.path.join(folder_path, os.path.splitext(filename)[0])
                 os.makedirs(output_folder, exist_ok=True)
                 downloaded_files = download_content_from_links(links, output_folder)
-                log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\n" + "\n".join(downloaded_files)
+                fin_pdf = time.time()
+                tiempo_transcurrido = fin_pdf - inicio_pdf
+                # Convertir la diferencia a H:M:S
+                horas = int(tiempo_transcurrido // 3600)
+                minutos = int((tiempo_transcurrido % 3600) // 60)
+                segundos = int(tiempo_transcurrido % 60)
+                # Formatear la salida
+                formato_hms = f"{horas:02}:{minutos:02}:{segundos:02}"
+                log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\nTiempo en procesar este pdf {formato_hms} segundos\n" + "\n".join(downloaded_files)
                 log_entries.append(log_entry)
     # Escribe el log en un archivo
-    with open(os.path.join(folder_path, 'log.txt'), 'w', encoding='utf-8') as log_file:
+    fin_proceso = time.time()
+    ahora = time.localtime()
+    formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
+    tiempo_transcurrido = fin_proceso - inicio_proceso
+    # Convertir la diferencia a H:M:S
+    horas = int(tiempo_transcurrido // 3600)
+    minutos = int((tiempo_transcurrido % 3600) // 60)
+    segundos = int(tiempo_transcurrido % 60)
+    # Formatear la salida
+    formato_hms = f"{horas:02}:{minutos:02}:{segundos:02}"
+    log_entry = f"Hora de fin: {formato}\nTiempo total {formato_hms} (H:M:S) "
+    log_entries.append(log_entry)
+    with open(os.path.join(folder_path, 'log.txt'), 'a', encoding='utf-8') as log_file:
         log_file.write("\n\n".join(log_entries))
 
 # Ruta de la carpeta que contiene los PDFs
 folder_path = './pdf'
+# folder_path = 'C:/Users/josel/Icarus/TI - Documentos/Proyectos/Iem-pro/La Serena/G4_MC-licitacion1/Ofertas_MC_G4'
 # folder_path = 'G:/Mi unidad/PDF-lrll/COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
+
 print("Procesando carpeta: ", folder_path)
+inicio = time.time()
+ahora = time.localtime()
+formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
+print("Hora de inicio: ", formato)
 process_pdfs_in_folder(folder_path)
+fin = time.time()
+ahora = time.localtime()
+formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
+print("Hora de Fin: ", formato)
+tiempo_transcurrido = fin - inicio
+# Convertir la diferencia a H:M:S
+horas = int(tiempo_transcurrido // 3600)
+minutos = int((tiempo_transcurrido % 3600) // 60)
+segundos = int(tiempo_transcurrido % 60)
+# Formatear la salida
+formato_hms = f"{horas:02}:{minutos:02}:{segundos:02}"
+print(f"La función tardó {formato_hms} (H:M:S) en ejecutarse.")
