@@ -105,7 +105,8 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
                     output_folder = os.path.join(folder_path, os.path.splitext(filename)[0])
                 os.makedirs(output_folder, exist_ok=True)
                 downloaded_files = download_content_from_links(links, output_folder)
-                copiar_y_renombrar_archivo(pdf_path, output_folder, filename[:-4]+f"_{nombre_equipo}_{codigo_equipo}.pdf")
+                if in_folders:
+                    copiar_y_renombrar_archivo(pdf_path, output_folder, filename[:-4]+f"_{nombre_equipo}_{codigo_equipo}.pdf")
                 fin_pdf = time.time()
                 formato_hms = elapsed_time(fin_pdf - inicio_pdf)
                 log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\nTiempo en procesar este pdf {formato_hms} segundos\n" + "\n".join(downloaded_files)
@@ -137,6 +138,3 @@ formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
 print("Hora de Fin: ", formato)
 formato_hms = elapsed_time(fin - inicio)
 print(f"La función tardó {formato_hms} (H:M:S) en ejecutarse.")
-
-# nombre_proponente = extraer_nombre_proponente(ruta_pdf)
-# print(f"Nombre del proponente: {nombre_proponente}")
