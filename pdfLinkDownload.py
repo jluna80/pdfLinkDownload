@@ -3,10 +3,8 @@ import re
 import requests
 import pdfplumber
 import time
-from urllib.parse import urlparse, unquote
-
 import shutil
-import os
+from urllib.parse import urlparse, unquote
 
 def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre):
     # Ejemplo de uso
@@ -20,7 +18,7 @@ def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre):
             ruta_destino_completa = os.path.join(ruta_destino, nuevo_nombre)
             #shutil.move(ruta_origen, ruta_destino_completa)
             shutil.copy(ruta_origen, ruta_destino_completa)
-            print(f"Archivo movido y renombrado exitosamente a {ruta_destino_completa}.")
+            print(f"Archivo copiado y renombrado exitosamente a {ruta_destino_completa}.")
         except Exception as e:
             print(f"Error al mover y renombrar el archivo: {e}")
     else:
@@ -68,14 +66,18 @@ def extraer_texto_entre_textos(ruta_pdf,text1,text2):
 def download_content_from_links(links, output_folder):
     downloaded_files = []
     for link in links:
-        response = requests.get(link)
         # Decodifica la URL y extrae el nombre del archivo
         decoded_link = unquote(link)
         # Extrae el nombre del archivo desde la URL y lo sanitiza
         filename = sanitize_filename(os.path.basename(urlparse(decoded_link ).path))
         file_path = os.path.join(output_folder, filename)
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
+        #Evitamos descargar archivos ya descargados
+        if not os.path.exists(file_path):
+            response = requests.get(link)
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+        else:
+            filename = filename + " (squiped)"
         downloaded_files.append(filename)
         print(filename)
     return downloaded_files
@@ -122,7 +124,7 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
         log_file.write("\n\n".join(log_entries))
 
 # Ruta de la carpeta que contiene los PDFs
-folder_path = './pdf'
+folder_path = '.\\pdf'
 # folder_path = 'C:/Users/josel/Icarus/TI - Documentos/Proyectos/Iem-pro/La Serena/G4_MC-licitacion1/Ofertas_MC_G4'
 # folder_path = 'G:/Mi unidad/PDF-lrll/COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
 
@@ -138,3 +140,4 @@ formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
 print("Hora de Fin: ", formato)
 formato_hms = elapsed_time(fin - inicio)
 print(f"La función tardó {formato_hms} (H:M:S) en ejecutarse.")
+#unique_in_a = [item for item in a if item not in b]
