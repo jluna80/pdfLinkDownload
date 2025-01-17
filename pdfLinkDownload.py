@@ -4,9 +4,10 @@ import requests
 import pdfplumber
 import time
 import shutil
+# import urllib.parse
 from urllib.parse import urlparse, unquote
 
-def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre):
+def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre, matiene_original = True):
     # Ejemplo de uso
     # ruta_origen = 'ruta/de/origen/archivo.txt'
     # ruta_destino = 'ruta/de/destino'
@@ -17,7 +18,10 @@ def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre):
             # Crear la ruta completa para el archivo en la nueva ubicación con el nuevo nombre
             ruta_destino_completa = os.path.join(ruta_destino, nuevo_nombre)
             #shutil.move(ruta_origen, ruta_destino_completa)
-            shutil.copy(ruta_origen, ruta_destino_completa)
+            if matiene_original:
+                shutil.copy(ruta_origen, ruta_destino_completa)
+            else:
+                shutil.move(ruta_origen, ruta_destino_completa)
             print(f"Archivo copiado y renombrado exitosamente a {ruta_destino_completa}.")
         except Exception as e:
             print(f"Error al mover y renombrar el archivo: {e}")
@@ -68,14 +72,28 @@ def download_content_from_links(links, output_folder):
     for link in links:
         # Decodifica la URL y extrae el nombre del archivo
         decoded_link = unquote(link)
+        # sanitized_link = urllib.parse.quote(link, safe=':/') # Esta opcion sanitiza los acentos y me falla por que algunas url tiene acentos.
+        sanitized_link = link.replace("+", "%2B")
         # Extrae el nombre del archivo desde la URL y lo sanitiza
         filename = sanitize_filename(os.path.basename(urlparse(decoded_link ).path))
         file_path = os.path.join(output_folder, filename)
-        #Evitamos descargar archivos ya descargados
-        if not os.path.exists(file_path):
-            response = requests.get(link)
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
+        #Evitamos descargar archivos ya descargados pero siempre descargo los anexos por que no se sus nombres.
+        if not os.path.exists(file_path) or filename.isdigit():
+            response = requests.get(sanitized_link)
+            if response.status_code == 200:
+                #obtengo el nombre del anexo ya que el filename siempre seria un numero.
+                if filename.isdigit():
+                    content_disposition = response.headers.get('Content-Disposition')
+                    filename = content_disposition.split('filename=')[1]
+                    if filename.startswith('"') or filename.startswith("'"):
+                        filename = filename[1:-1]
+                    filename = filename.encode('latin1').decode('utf-8')
+                    filename = sanitize_filename(os.path.basename(filename))
+                    file_path = os.path.join(output_folder, filename)
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
+            else:
+                filename = sanitized_link + f" (http response error {response.status_code})"
         else:
             filename = filename + " (squiped)"
         downloaded_files.append(filename)
@@ -96,7 +114,7 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
             links = extract_links_from_pdf(pdf_path)
             nombre_proponente = extraer_texto_entre_textos(pdf_path, "Nombre del proponente", "Razón social")
             codigo_equipo = extraer_texto_entre_textos(pdf_path, "Código Tipo Equipo / Mobiliario:", "Nombre del Equipamiento:")
-            nombre_equipo = extraer_texto_entre_textos(pdf_path, "Nombre del Equipamiento:", "Código Tipo Equipo / Mobiliario:")
+            nombre_equipo = extraer_texto_entre_textos(pdf_path, "Nombre del Equipamiento:", "Marca:")
             print(f"Nombre del proponente: {nombre_proponente}")
             print(f"Código Tipo Equipo / Mobiliario: {codigo_equipo}")
             print(filename, "Cantidad de docs: ", len(links))
@@ -109,6 +127,10 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
                 downloaded_files = download_content_from_links(links, output_folder)
                 if in_folders:
                     copiar_y_renombrar_archivo(pdf_path, output_folder, filename[:-4]+f"_{nombre_equipo}_{codigo_equipo}.pdf")
+                    destino_dir = os.path.dirname(f'{folder_path}\\pdfProcesados\\')  # Crear el directorio de destino si no existe
+                    if not os.path.exists(destino_dir):
+                        os.makedirs(destino_dir)
+                    copiar_y_renombrar_archivo(pdf_path, destino_dir, filename, False ) #guarda los pdf procesados en otra carpeta que debe existir
                 fin_pdf = time.time()
                 formato_hms = elapsed_time(fin_pdf - inicio_pdf)
                 log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\nTiempo en procesar este pdf {formato_hms} segundos\n" + "\n".join(downloaded_files)
@@ -125,8 +147,9 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
 
 # Ruta de la carpeta que contiene los PDFs
 folder_path = '.\\pdf'
-# folder_path = 'C:/Users/josel/Icarus/TI - Documentos/Proyectos/Iem-pro/La Serena/G4_MC-licitacion1/Ofertas_MC_G4'
-# folder_path = 'G:/Mi unidad/PDF-lrll/COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
+# folder_path = 'C:\\Users\\josel\\Icarus\\TI - Documentos\\Proyectos\\Iem-pro\\La Serena\\G4_MC-licitacion1\\Ofertas_MC_G4'
+folder_path = 'C:\\Users\\josel\\Icarus\\EEMM-MC-MNC - Copia Ofertas Recibidas'
+# folder_path = 'G:\\Mi unidad\\PDF-lrll\\COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
 
 print("Procesando carpeta: ", folder_path)
 inicio = time.time()
@@ -140,4 +163,3 @@ formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
 print("Hora de Fin: ", formato)
 formato_hms = elapsed_time(fin - inicio)
 print(f"La función tardó {formato_hms} (H:M:S) en ejecutarse.")
-#unique_in_a = [item for item in a if item not in b]
