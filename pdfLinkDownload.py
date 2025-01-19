@@ -7,6 +7,44 @@ import shutil
 # import urllib.parse
 from urllib.parse import urlparse, unquote
 
+# Definir una variable global para la ruta
+ruta_global = os.path.join(os.getcwd(), "pdf")
+
+def log_mesajes(mensajes, ruta=None, nombre_archivo="log.txt", mostrar_consola=False):
+    """
+    Crea o actualiza un archivo de log con los mensajes proporcionados.
+
+    Args:
+        mensajes (str | list[str]): Mensaje o lista de mensajes a registrar en el log.
+        ruta (str, optional): Ruta donde se creará el archivo del log. Si no se especifica, se usará la ruta de ejecución.
+        nombre_archivo (str, optional): Nombre del archivo de log. Por defecto es "log.txt".
+        mostrar_consola (bool, optional): Si es True, los mensajes también se mostrarán en la consola. Por defecto es False.
+    """
+    if ruta is None:
+        ruta = ruta_global
+
+    # Asegurarse de que la ruta existe
+    os.makedirs(ruta, exist_ok=True)
+
+    # Ruta completa del archivo de log
+    ruta_completa = os.path.join(ruta, nombre_archivo)
+
+    # Convertir el mensaje a lista si es un string
+    if isinstance(mensajes, str):
+        mensajes = [mensajes]
+
+    # Obtener la fecha y hora actual
+    #timestamp = time.strftime("%y-%m-%d/%H:%M:%S")
+    timestamp = time.strftime("%y-%m-%d %H:%M:%S")
+
+    # Abrir el archivo en modo append (crea el archivo si no existe)
+    with open(ruta_completa, "a", encoding="utf-8") as log_file:
+        for mensaje in mensajes:
+            entrada = f"{timestamp}-> {mensaje} \n"
+            log_file.write(entrada)
+            if mostrar_consola:
+                print(entrada.strip())
+
 def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre, matiene_original = True):
     # Ejemplo de uso
     # ruta_origen = 'ruta/de/origen/archivo.txt'
@@ -20,13 +58,18 @@ def copiar_y_renombrar_archivo(ruta_origen, ruta_destino, nuevo_nombre, matiene_
             #shutil.move(ruta_origen, ruta_destino_completa)
             if matiene_original:
                 shutil.copy(ruta_origen, ruta_destino_completa)
+                log_mesajes(f"Archivo copiado y renombrado exitosamente a {ruta_destino_completa}.", ruta_global,
+                            "log.txt", True)
             else:
                 shutil.move(ruta_origen, ruta_destino_completa)
-            print(f"Archivo copiado y renombrado exitosamente a {ruta_destino_completa}.")
+                log_mesajes(f"Archivo movido exitosamente a {ruta_destino_completa}.", ruta_global, "log.txt", True)
         except Exception as e:
-            print(f"Error al mover y renombrar el archivo: {e}")
+            #print(f"Error al mover y renombrar el archivo: {e}")
+            log_mesajes(f"Error al mover y renombrar el archivo: {e}", ruta_global, "log.txt",True)
+            log_mesajes(f"Error al mover y renombrar el archivo: {e}", ruta_global, "ERROR.log")
     else:
-        print("El archivo no existe en la ruta de origen.")
+        log_mesajes("El archivo no existe en la ruta de origen.", ruta_global, "log.txt", True)
+        log_mesajes("El archivo no existe en la ruta de origen.", ruta_global, "ERROR.log")
 
 def elapsed_time(tiempo_transcurrido):
     # Convertir la diferencia a H:M:S
@@ -39,9 +82,11 @@ def elapsed_time(tiempo_transcurrido):
 
 def sanitize_filename(filename):
     # Reemplaza los caracteres no válidos
-    invalid_chars = [':', '°']
+    invalid_chars = [':', '°', '/', '\\']
     for char in invalid_chars:
         filename = filename.replace(char, '_')
+    # Eliminar saltos de línea
+    filename = filename.replace('\n', ' ').replace('\r', ' ')
     return filename
 
 def extract_links_from_pdf(pdf_path):
@@ -59,8 +104,9 @@ def extraer_texto_entre_textos(ruta_pdf,text1,text2):
         pagina = pdf.pages[0]  # Obtener la primera página
         texto = pagina.extract_text()
         # Expresión regular para encontrar el texto entre las dos frases
-        patron = re.compile(rf"{text1}\s*(.*?)\s*{text2}")
+        patron = re.compile(rf"{text1}\s*(.*?)\s*{text2}", re.DOTALL)
         coincidencia = patron.search(texto)
+        #coincidencias = patron.findall(texto)
         if coincidencia:
             text_encontrado = coincidencia.group(1).strip()
             return text_encontrado
@@ -92,21 +138,23 @@ def download_content_from_links(links, output_folder):
                     file_path = os.path.join(output_folder, filename)
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
+                log_mesajes(f"Descarga de Archivo: {filename}", ruta_global, "log.txt", True)
             else:
-                filename = sanitized_link + f" (http response error {response.status_code})"
+                log_mesajes(f"Descarga de Archivo: (http response error {response.status_code}) ruta: {sanitized_link}", ruta_global, "ERROR.log")
+                log_mesajes(f"Descarga de Archivo: (http response error {response.status_code}) ruta: {sanitized_link}", ruta_global,
+                            "log.txt",True)
         else:
-            filename = filename + " (squiped)"
+            filename = filename + " (omitido)"
         downloaded_files.append(filename)
-        print(filename)
     return downloaded_files
 
 def process_pdfs_in_folder(folder_path, in_folders = True):
     log_entries = []
     inicio_proceso = time.time()
     ahora = time.localtime()
-    formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
-    log_entry = f"\n********************\nHora de inicio: {formato}"
-    log_entries.append(log_entry)
+    # formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
+    # log_entry = f"\n********************\nHora de inicio: {formato}"
+    # log_entries.append(log_entry)
     for filename in os.listdir(folder_path):
         if filename.endswith('.pdf'):
             inicio_pdf = time.time()
@@ -115,9 +163,16 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
             nombre_proponente = extraer_texto_entre_textos(pdf_path, "Nombre del proponente", "Razón social")
             codigo_equipo = extraer_texto_entre_textos(pdf_path, "Código Tipo Equipo / Mobiliario:", "Nombre del Equipamiento:")
             nombre_equipo = extraer_texto_entre_textos(pdf_path, "Nombre del Equipamiento:", "Marca:")
-            print(f"Nombre del proponente: {nombre_proponente}")
-            print(f"Código Tipo Equipo / Mobiliario: {codigo_equipo}")
-            print(filename, "Cantidad de docs: ", len(links))
+            nombre_proponente = sanitize_filename(nombre_proponente)
+            codigo_equipo = sanitize_filename(codigo_equipo)
+            nombre_equipo = sanitize_filename(nombre_equipo)
+            #print(f"Nombre del proponente: {nombre_proponente}")
+            log_entries = [ f"Archivo en proceso {filename}",
+                            f"Nombre del proponente: {nombre_proponente}",
+                            f"Nombre del equipo: {nombre_equipo}",
+                            f"Código Tipo Equipo / Mobiliario: {codigo_equipo}",
+                            f"Cantidad de docs: {len(links)}"]
+            log_mesajes(log_entries, ruta_global, "log.txt", True)
             if links:
                 if in_folders:
                     output_folder = os.path.join(folder_path, nombre_proponente + "\\" +  os.path.splitext(filename)[0]+f"_{nombre_equipo}_{codigo_equipo}")
@@ -133,33 +188,30 @@ def process_pdfs_in_folder(folder_path, in_folders = True):
                     copiar_y_renombrar_archivo(pdf_path, destino_dir, filename, False ) #guarda los pdf procesados en otra carpeta que debe existir
                 fin_pdf = time.time()
                 formato_hms = elapsed_time(fin_pdf - inicio_pdf)
-                log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\nTiempo en procesar este pdf {formato_hms} segundos\n" + "\n".join(downloaded_files)
-                log_entries.append(log_entry)
-    # Escribe el log en un archivo
-    fin_proceso = time.time()
-    ahora = time.localtime()
-    formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
-    formato_hms = elapsed_time(fin_proceso - inicio_proceso)
-    log_entry = f"Hora de fin: {formato}\nTiempo total {formato_hms} (H:M:S) "
-    log_entries.append(log_entry)
-    with open(os.path.join(folder_path, 'log.txt'), 'a', encoding='utf-8') as log_file:
-        log_file.write("\n\n".join(log_entries))
+                #log_entry = f"{filename} Cantidad de docs: {len(downloaded_files)}\nTiempo en procesar este pdf {formato_hms} segundos\n" + "\n".join(downloaded_files)
+                log_entries = [f"Cantidad de docs descargados: {len(downloaded_files)}",
+                               f"Tiempo en procesar este pdf {formato_hms} segundos"]
+                log_mesajes(log_entries, ruta_global, "log.txt", True)
 
 # Ruta de la carpeta que contiene los PDFs
-folder_path = '.\\pdf'
-# folder_path = 'C:\\Users\\josel\\Icarus\\TI - Documentos\\Proyectos\\Iem-pro\\La Serena\\G4_MC-licitacion1\\Ofertas_MC_G4'
-folder_path = 'C:\\Users\\josel\\Icarus\\EEMM-MC-MNC - Copia Ofertas Recibidas'
-# folder_path = 'G:\\Mi unidad\\PDF-lrll\\COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
 
-print("Procesando carpeta: ", folder_path)
+
+#ruta_global = 'C:\\Users\\josel\\Icarus\\TI - Documentos\\Proyectos\\Iem-pro\\La Serena\\G4_MC-licitacion1\\Ofertas_MC_G4'
+#ruta_global = 'C:\\Users\\josel\\Icarus\\EEMM-MC-MNC - Copia Ofertas Recibidas'
+#ruta_global = 'G:\\Mi unidad\\PDF-lrll\\COMERCIALIZADORA P&E SOLUCIONES INDUSTRIALES SPA'
+
+folder_path = ruta_global
+mensajes = [
+    "-----------------------------------",
+    "    Inicio proceso de ejecución    ",
+    "-----------------------------------"
+]
+log_mesajes(mensajes, folder_path, "log.txt",True)
+log_mesajes(f"Procesando carpeta: {folder_path}", folder_path, "log.txt",True)
 inicio = time.time()
-ahora = time.localtime()
-formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
-print("Hora de inicio: ", formato)
+log_mesajes(f"Parte el análisis de los documentos", folder_path, "log.txt",True)
 process_pdfs_in_folder(folder_path)
 fin = time.time()
-ahora = time.localtime()
-formato = time.strftime("%Y-%m-%d %H:%M:%S", ahora)
-print("Hora de Fin: ", formato)
+log_mesajes(f"Termina el análisis de los documentos:", folder_path, "log.txt",True)
 formato_hms = elapsed_time(fin - inicio)
-print(f"La función tardó {formato_hms} (H:M:S) en ejecutarse.")
+log_mesajes(f"El proceso tardó {formato_hms} (H:M:S) en ejecutarse.", folder_path, "log.txt",True)
