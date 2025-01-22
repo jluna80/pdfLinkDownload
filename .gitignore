@@ -2,3 +2,6 @@
 Scripts
 Lib
 oferta*
+pdf
+conf.py
+__pycache__
